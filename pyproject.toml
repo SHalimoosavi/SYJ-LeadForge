@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "syj-leadforge"
+version = "0.1.0"
+description = "Find website opportunities, qualify leads, and grow your freelance business — ethically."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "SYJ LeadForge Contributors" }]
+dependencies = [
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+leadforge = "leadforge.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["leadforge*"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# BLE001/S110: this tool intentionally catches broad exceptions in a few
+# spots (audit.py, batch HTML parsing) so that one malformed page or
+# unexpected error never aborts an entire audit run over many businesses.
+ignore = ["BLE001", "S110"]

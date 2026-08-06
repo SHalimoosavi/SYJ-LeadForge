@@ -1,0 +1,7 @@
+name,category,city,state,country,phone,website,rating,review_count,notes
+Smile Care Dental Clinic,Dental Clinic,Hyderabad,Telangana,India,+91-9000000001,,4.6,182,No website found in research
+Prime Diagnostics Lab,Diagnostic Lab,Hyderabad,Telangana,India,+91-9000000002,http://primediagnostics.example.com,4.2,64,Old-looking website
+Greenview Interiors,Interior Designer,Hyderabad,Telangana,India,+91-9000000003,,4.8,41,No website
+Sunrise Law Associates,Law Firm,Hyderabad,Telangana,India,+91-9000000004,https://sunriselaw.example.com,4.4,29,Has a basic site
+Rahul's Tea Stall,Tea Stall,Hyderabad,Telangana,India,+91-9000000005,,4.9,310,Excluded by default category
+Elite Fitness Gym,Gym,Hyderabad,Telangana,India,+91-9000000006,https://elitefitness.example.com,4.1,97,
