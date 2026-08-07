@@ -11,8 +11,34 @@ leadforge/
 ├── db.py             # SQLite persistence (Store class)
 ├── importer.py        # CSV -> Business parsing & normalization
 ├── audit.py           # HTTP fetch + stdlib-only HTML analysis + sub-scoring
-└── scoring.py          # Business + AuditResult -> LeadScore
+├── scoring.py          # Business + AuditResult -> LeadScore
+└── term.py             # Cross-platform-safe console output (see below)
 ```
+
+### Cross-platform console output
+
+Windows consoles (`cmd.exe`, older PowerShell hosts) and some CI runners
+often report a non-UTF-8 encoding (`cp1252`, `cp437`) that cannot
+represent characters like `★` or `—`, which raises `UnicodeEncodeError`
+on a plain `print()`. All console output in the CLI goes through
+`leadforge/term.py` instead of calling `print()` directly:
+
+- `supports_unicode(stream)` — detects, by actually attempting to
+  encode, whether the target stream can safely emit the symbols this
+  CLI uses.
+- `stars(count)` / `format_symbol(symbol)` — return the Unicode glyph on
+  capable terminals, or an ASCII-equivalent fallback (`*`, `-`, `OK`,
+  `X`, ...) otherwise.
+- `safe_print(...)` — a drop-in `print()` replacement that never raises
+  `UnicodeEncodeError`: it tries full Unicode first, falls back to
+  ASCII-equivalent text for known symbols, and as a last resort
+  replaces any remaining unencodable characters (e.g. an accented
+  business name from an imported CSV on a strict-ASCII console) rather
+  than crashing the run.
+
+File output (CSV/JSON/Markdown exports) is unaffected by any of this:
+those are already written with explicit `encoding="utf-8"`, so exported
+files retain full Unicode fidelity regardless of console encoding.
 
 Data flow:
 

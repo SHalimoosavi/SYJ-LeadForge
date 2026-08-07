@@ -23,6 +23,7 @@ from .exporters import EXPORTERS
 from .importer import ImportError_, load_businesses_from_csv
 from .models import AuditResult
 from .scoring import score_business
+from .term import format_symbol, safe_print, stars
 
 
 def _get_store() -> Store:
@@ -34,7 +35,7 @@ def cmd_import(args: argparse.Namespace) -> int:
     try:
         businesses = load_businesses_from_csv(Path(args.csv_path))
     except ImportError_ as exc:
-        print(f"Import failed: {exc}", file=sys.stderr)
+        safe_print(f"Import failed: {exc}", file=sys.stderr)
         return 1
 
     store = _get_store()
@@ -42,7 +43,7 @@ def cmd_import(args: argparse.Namespace) -> int:
     for b in businesses:
         b.id = store.upsert_business(b)
         count += 1
-    print(f"Imported/updated {count} businesses from {args.csv_path}")
+    safe_print(f"Imported/updated {count} businesses from {args.csv_path}")
     return 0
 
 
@@ -57,21 +58,21 @@ def cmd_audit(args: argparse.Namespace) -> int:
         businesses = [b for b in store.list_businesses() if b.website]
 
     if not businesses:
-        print("No businesses with a website found to audit. Run `leadforge import` first.")
+        safe_print("No businesses with a website found to audit. Run `leadforge import` first.")
         return 0
 
-    print(f"Auditing {len(businesses)} website(s)...")
+    safe_print(f"Auditing {len(businesses)} website(s)...")
     for i, b in enumerate(businesses, start=1):
-        print(f"  [{i}/{len(businesses)}] {b.name} -> {b.website}")
+        safe_print(f"  [{i}/{len(businesses)}] {b.name} -> {b.website}")
         result: AuditResult = audit_website(b.id, b.website, settings)
         store.save_audit(result)
         if result.reachable:
-            print(f"      overall score: {result.overall_score}/100")
+            safe_print(f"      overall score: {result.overall_score}/100")
         else:
-            print(f"      unreachable: {result.error}")
+            safe_print(f"      unreachable: {result.error}")
         if i < len(businesses) and settings.request_delay_seconds > 0:
             time.sleep(settings.request_delay_seconds)
-    print("Audit complete.")
+    safe_print("Audit complete.")
     return 0
 
 
@@ -79,7 +80,7 @@ def cmd_score(args: argparse.Namespace) -> int:
     store = _get_store()
     businesses = store.list_businesses()
     if not businesses:
-        print("No businesses found. Run `leadforge import` first.")
+        safe_print("No businesses found. Run `leadforge import` first.")
         return 0
 
     for b in businesses:
@@ -87,15 +88,15 @@ def cmd_score(args: argparse.Namespace) -> int:
         audit_obj = AuditResult(**audit_dict) if audit_dict else None
         score = score_business(b, audit_obj)
         store.save_score(score)
-        print(f"{b.name}: {score.opportunity_score}/100 ({score.tier}, {'★' * score.stars})")
-    print(f"Scored {len(businesses)} businesses.")
+        safe_print(f"{b.name}: {score.opportunity_score}/100 ({score.tier}, {stars(score.stars)})")
+    safe_print(f"Scored {len(businesses)} businesses.")
     return 0
 
 
 def cmd_export(args: argparse.Namespace) -> int:
     fmt = args.format.lower()
     if fmt not in EXPORTERS:
-        print(f"Unsupported format '{fmt}'. Choose from: {', '.join(sorted(set(EXPORTERS)))}", file=sys.stderr)
+        safe_print(f"Unsupported format '{fmt}'. Choose from: {', '.join(sorted(set(EXPORTERS)))}", file=sys.stderr)
         return 1
 
     store = _get_store()
@@ -106,13 +107,13 @@ def cmd_export(args: argparse.Namespace) -> int:
         records = [r for r in records if (r.get("score") or {}).get("opportunity_score", 0) >= args.min_score]
 
     if not records:
-        print("No matching leads to export.")
+        safe_print("No matching leads to export.")
         return 0
 
     default_name = f"leadforge_leads.{('md' if fmt in ('markdown', 'md') else fmt)}"
     out_path = Path(args.out) if args.out else Path(default_name)
     EXPORTERS[fmt](records, out_path)
-    print(f"Exported {len(records)} lead(s) to {out_path}")
+    safe_print(f"Exported {len(records)} lead(s) to {out_path}")
     return 0
 
 
@@ -124,13 +125,13 @@ def cmd_list(args: argparse.Namespace) -> int:
     records.sort(key=lambda r: (r.get("score") or {}).get("opportunity_score", 0), reverse=True)
 
     if not records:
-        print("No businesses found. Run `leadforge import` first.")
+        safe_print("No businesses found. Run `leadforge import` first.")
         return 0
 
-    print(f"{'ID':<4} {'Name':<30} {'Category':<20} {'City':<15} {'Score':<6} {'Tier':<10} {'Website'}")
+    safe_print(f"{'ID':<4} {'Name':<30} {'Category':<20} {'City':<15} {'Score':<6} {'Tier':<10} {'Website'}")
     for r in records:
         score = r.get("score") or {}
-        print(
+        safe_print(
             f"{r['id']:<4} {r['name'][:29]:<30} {(r['category'] or '')[:19]:<20} "
             f"{(r['city'] or '')[:14]:<15} {score.get('opportunity_score', '-'):<6} "
             f"{score.get('tier', '-'):<10} {r.get('website') or '(none)'}"
@@ -140,27 +141,27 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 def cmd_doctor(args: argparse.Namespace) -> int:
     settings = get_settings()
-    print("SYJ LeadForge — doctor")
-    print(f"  version:      {__version__}")
-    print(f"  python:       {sys.version.split()[0]}")
-    print(f"  data dir:     {settings.data_dir}")
-    print(f"  database:     {settings.db_path} ({'exists' if settings.db_path.exists() else 'will be created'})")
+    safe_print(f"SYJ LeadForge {format_symbol('—')} doctor")
+    safe_print(f"  version:      {__version__}")
+    safe_print(f"  python:       {sys.version.split()[0]}")
+    safe_print(f"  data dir:     {settings.data_dir}")
+    safe_print(f"  database:     {settings.db_path} ({'exists' if settings.db_path.exists() else 'will be created'})")
     try:
         import requests  # noqa: F401
-        print("  requests:     ok")
+        safe_print("  requests:     ok")
     except ImportError:
-        print("  requests:     MISSING (pip install requests)")
+        safe_print("  requests:     MISSING (pip install requests)")
     store = _get_store()
     businesses = store.list_businesses()
-    print(f"  businesses:   {len(businesses)}")
-    print("Status: OK")
+    safe_print(f"  businesses:   {len(businesses)}")
+    safe_print("Status: OK")
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="leadforge",
-        description="SYJ LeadForge — find website opportunities, qualify leads, grow your freelance business.",
+        description="SYJ LeadForge - find website opportunities, qualify leads, grow your freelance business.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)

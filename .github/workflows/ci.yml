@@ -39,3 +39,15 @@ jobs:
           leadforge score
           leadforge export json --out /tmp/leads.json
           leadforge list
+
+      - name: CLI smoke test (forced legacy console encoding)
+        # Regression guard for Windows cmd.exe / cp1252-style consoles:
+        # forces a non-UTF-8 stdout encoding on every OS and asserts the
+        # CLI still completes without UnicodeEncodeError.
+        shell: bash
+        env:
+          PYTHONIOENCODING: cp1252
+        run: |
+          leadforge doctor
+          leadforge score
+          leadforge list

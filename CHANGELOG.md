@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- **Windows console crash (`UnicodeEncodeError`)** — the CLI printed Unicode symbols (`★`, `—`) directly, which crashed on Windows `cmd.exe`/legacy PowerShell consoles reporting `cp1252`/`cp437` encoding. Added `leadforge/term.py` with `safe_print`, `stars`, and `format_symbol` helpers that detect console capability and adaptively fall back to ASCII (`*`, `-`) without ever raising. Full Unicode output is preserved on UTF-8-capable terminals. All CLI output now routes through these helpers instead of scattering encoding logic across the codebase.
+- Added `tests/test_term.py` (15 tests) simulating UTF-8, cp1252, cp437, and strict-ASCII console encodings.
+- CI now runs an additional Windows/Linux/macOS smoke-test pass with `PYTHONIOENCODING=cp1252` forced, to catch regressions of this kind going forward.
+
 ## [0.1.0] - 2026-08-06
 
 ### Added
