@@ -22,13 +22,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install package
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,backend]"
 
       - name: Lint
-        run: ruff check leadforge tests
+        run: ruff check leadforge backend tests
 
       - name: Test
-        run: pytest -q --cov=leadforge --cov-report=term-missing
+        run: pytest -q --cov=leadforge --cov=backend --cov-report=term-missing
 
       - name: CLI smoke test
         shell: bash
@@ -51,3 +51,9 @@ jobs:
           leadforge doctor
           leadforge score
           leadforge list
+
+      - name: API smoke test (live uvicorn server)
+        # Pure-Python script (no bash `&` backgrounding, no curl) so it
+        # runs identically on Linux, macOS, and Windows runners: starts
+        # a real server, drives it with real HTTP requests end-to-end.
+        run: python scripts/api_smoke_test.py

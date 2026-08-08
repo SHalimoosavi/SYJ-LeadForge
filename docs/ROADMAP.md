@@ -7,11 +7,12 @@
 - SQLite local storage, no external services required
 - Test suite + CI (Linux/macOS/Windows × Python 3.10–3.12)
 
-## v0.2.0 — Backend API
+## v0.2.0 — Backend API (done)
 
 - FastAPI service exposing the same `leadforge` core modules over REST
-- PostgreSQL as an optional backend alongside SQLite
-- Background job queue for batch audits
+- Endpoints for business CRUD/import, per-business and batch audit, per-business and batch scoring, ranked lead listing, CSV/JSON/Markdown export, and dashboard-style stats
+- Interactive docs at `/docs` (OpenAPI)
+- 42 endpoint tests (FastAPI TestClient, fully mocked/offline) alongside the original 14 core tests
 
 ## v0.3.0 — Dashboard
 
@@ -31,6 +32,8 @@
 
 ## Later
 
+- PostgreSQL as an optional backend alongside SQLite
+- Background job queue for large batch audits (replacing the current synchronous `/audits/run`)
 - Desktop app (Tauri)
 - i18n (Spanish, French, Portuguese, Hindi, Arabic)
 - Revenue estimator refinements based on community-contributed pricing data

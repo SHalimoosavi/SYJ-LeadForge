@@ -6,7 +6,7 @@ SYJ LeadForge is an open-source, MIT-licensed **lead qualification and website a
 
 This is **not** a scraper and **not** a spam tool. It works from CSV lists you already have (your own research, CRM exports, or data from sources you're permitted to use), audits each business's *own* public homepage the same way a browser would, and produces a transparent, explainable opportunity score — never a black box.
 
-**Status:** v0.1.0 — a working, tested CLI covering import → audit → score → export. This is the first milestone of a larger roadmap (see below); the web dashboard, plugin system, and AI suggestion modules described in the original design doc are not built yet.
+**Status:** v0.2.0 — the CLI (import → audit → score → export) plus a FastAPI REST backend wrapping the same core modules. This is the second milestone of a larger roadmap; the web dashboard, plugin system, and AI suggestion modules described in the original design doc are not built yet.
 
 ---
 
@@ -18,6 +18,7 @@ This is **not** a scraper and **not** a spam tool. It works from CSV lists you a
 - **Export** — CSV, JSON, or a Markdown report, filterable by tier or minimum score.
 - **List** — a quick table view of all businesses and their latest scores.
 - **Doctor** — environment/config sanity check.
+- **REST API** — a FastAPI backend exposing every one of the above over HTTP, with interactive docs at `/docs`, so you can drive LeadForge from a dashboard, script, or another tool.
 
 Everything runs **locally**, stores data in a local SQLite file, and makes no network calls except the one GET request per business you explicitly audit.
 
@@ -26,12 +27,13 @@ Everything runs **locally**, stores data in a local SQLite file, and makes no ne
 ```bash
 git clone https://github.com/SHalimoosavi/SYJ-LeadForge.git
 cd SYJ-LeadForge
-pip install -e ".[dev]"
+pip install -e ".[dev]"        # CLI only
+pip install -e ".[dev,backend]"  # CLI + REST API
 ```
 
 Requires Python 3.10+. Works on Windows, macOS, Linux, Android (Termux), Docker, and Raspberry Pi — anywhere Python and `pip` run.
 
-## Quick start
+## Quick start — CLI
 
 ```bash
 # 1. Import a list of businesses you've compiled
@@ -50,6 +52,50 @@ leadforge list
 leadforge export csv --out leads.csv
 leadforge export markdown --out leads.md --min-score 60
 ```
+
+## Quick start — REST API
+
+```bash
+uvicorn backend.main:app --reload
+```
+
+Then open **http://127.0.0.1:8000/docs** for interactive API docs, or:
+
+```bash
+# Import a CSV
+curl -X POST -F "file=@sample_data/businesses_sample.csv;type=text/csv" \
+  http://127.0.0.1:8000/businesses/import
+
+# Score everything
+curl -X POST http://127.0.0.1:8000/scores/run
+
+# Get the ranked lead list
+curl http://127.0.0.1:8000/leads
+
+# Export as CSV
+curl http://127.0.0.1:8000/leads/export/csv -o leads.csv
+```
+
+### API endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/health` | Liveness check |
+| POST | `/businesses/import` | Import businesses from an uploaded CSV |
+| GET | `/businesses` | List businesses (filter by `category`, `city`) |
+| POST | `/businesses` | Create a business manually |
+| GET | `/businesses/{id}` | Get one business |
+| POST | `/businesses/{id}/audit` | Audit one business's website |
+| GET | `/businesses/{id}/audit` | Get the latest audit for a business |
+| POST | `/audits/run` | Audit every business that has a website |
+| POST | `/businesses/{id}/score` | Score one business |
+| GET | `/businesses/{id}/score` | Get the latest score for a business |
+| POST | `/scores/run` | Score every business |
+| GET | `/leads` | Ranked lead list (filter by `tier`, `min_score`) |
+| GET | `/leads/export/{csv\|json\|markdown}` | Download qualified leads |
+| GET | `/stats` | Dashboard-style summary (counts, tier breakdown, average score) |
+
+The API and CLI share the exact same `leadforge/` core modules — no logic is duplicated, so results are always consistent between the two.
 
 ## CSV format
 
@@ -82,20 +128,19 @@ All settings are environment variables (see `leadforge/config.py`), so nothing s
 ## Development
 
 ```bash
-pip install -e ".[dev]"
-pytest -q                 # 14 tests, all offline/mocked — no network needed
-ruff check leadforge tests
+pip install -e ".[dev,backend]"
+pytest -q                 # 56 tests, all offline/mocked — no network needed
+ruff check leadforge backend tests
 ```
 
 ## Roadmap
 
-This CLI is the foundation. Planned next milestones (see [ROADMAP.md](docs/ROADMAP.md)):
+The CLI and REST API are the foundation. Planned next milestones (see [ROADMAP.md](docs/ROADMAP.md)):
 
-1. FastAPI backend + REST API over the same core modules
-2. Static, installable PWA dashboard (Next.js, exportable to GitHub Pages)
-3. Plugin system for custom scoring rules and industry packs
-4. PDF report generation
-5. AI-assisted recommendation text (opt-in, bring-your-own-API-key)
+1. Static, installable PWA dashboard (Next.js, exportable to GitHub Pages) that talks to this API
+2. Plugin system for custom scoring rules and industry packs
+3. PDF report generation
+4. AI-assisted recommendation text (opt-in, bring-your-own-API-key)
 
 ## Principles
 

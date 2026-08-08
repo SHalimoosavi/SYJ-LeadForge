@@ -56,6 +56,29 @@ Design choices:
 - **One HTTP GET per audited business** — no crawling, no following internal links, no bypassing robots.txt-style restrictions, and a configurable delay between requests.
 - **Every score is explainable** — `LeadScore.reasons` always lists the concrete signals that produced the number.
 
+## Backend (v0.2.0)
+
+```
+backend/
+├── main.py            # FastAPI app, CORS, router wiring, /health
+├── dependencies.py     # StoreDep — Annotated dependency-injection for the SQLite Store
+├── schemas.py          # Pydantic response/request models mirroring leadforge.models
+└── routers/
+    ├── businesses.py    # CRUD + CSV import
+    ├── audits.py         # per-business and batch website audit
+    ├── scores.py          # per-business and batch opportunity scoring
+    └── leads.py            # ranked lead list, CSV/JSON/Markdown export, stats
+```
+
+The backend does not reimplement import, audit, or scoring logic — every
+route calls straight into `leadforge.importer`, `leadforge.audit`, and
+`leadforge.scoring`, the same functions `leadforge/cli.py` calls. A
+request is handled by opening a fresh `Store` (SQLite connection) per
+request via `get_settings()`, so `LEADFORGE_HOME` continues to be the
+single source of truth for where data lives, in both the CLI and the API.
+
 ## Planned (see ROADMAP.md)
 
-The backend (`FastAPI`) and frontend (`Next.js`) will be added as separate top-level directories (`backend/`, `frontend/`) that import and wrap these same core `leadforge` modules, rather than duplicating logic — the CLI, API, and dashboard should always agree on how a lead is scored.
+The frontend (`Next.js`) dashboard will be added as its own top-level
+`frontend/` directory that talks to this same REST API, so the CLI,
+API, and dashboard always agree on how a lead is scored.
