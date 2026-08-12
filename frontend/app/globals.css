@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * SYJ LeadForge — "field audit console" visual identity.
+ *
+ * This is an inspector's working tool, not a marketing page: dark,
+ * ink-navy surfaces by default (the brief calls for dark mode first),
+ * a signal-amber accent standing in for "flagged opportunity," and a
+ * circuit-teal accent for "healthy / already audited" state. Data
+ * (scores, IDs, response times) is set in a monospace stack so numbers
+ * align and read like instrument readouts rather than prose.
+ *
+ * Fonts are system stacks on purpose, not a Google Fonts import: this
+ * is an offline-first PWA meant to keep working with no network at
+ * all, so nothing in the app shell should depend on a font CDN fetch
+ * to render correctly, on first load or afterwards.
+ *
+ * Theme values live as CSS custom properties, flipped by a `.dark` /
+ * `.light` class on <html> (set before paint by an inline script in
+ * layout.tsx, to avoid a flash of the wrong theme). Components use the
+ * semantic Tailwind tokens (bg-surface, text-fg, border-edge, ...)
+ * defined in tailwind.config.ts, which read these variables — so one
+ * class works correctly in both themes, no dark:/light: duplication.
+ */
+
+:root,
+html.dark {
+  --surface: #0f141b;
+  --surface-2: #171d24;
+  --edge: #2b323d;
+  --fg: #e4e7ea;
+  --fg-muted: #95a0ac;
+  --fg-faint: #5b6472;
+}
+
+html.light {
+  --surface: #f7f5f0;
+  --surface-2: #ffffff;
+  --edge: #dfdacd;
+  --fg: #1d232c;
+  --fg-muted: #5b6472;
+  --fg-faint: #95a0ac;
+}
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    @apply bg-surface text-fg font-body;
+  }
+
+  ::selection {
+    @apply bg-signal/30 text-inherit;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-signal ring-offset-2 ring-offset-surface;
+  }
+}
+
+@layer utilities {
+  .eyebrow {
+    @apply font-data text-[11px] uppercase tracking-eyebrow text-fg-muted;
+  }
+
+  .plate {
+    @apply bg-surface-2 border border-edge rounded-md shadow-plate;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

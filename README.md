@@ -6,7 +6,7 @@ SYJ LeadForge is an open-source, MIT-licensed **lead qualification and website a
 
 This is **not** a scraper and **not** a spam tool. It works from CSV lists you already have (your own research, CRM exports, or data from sources you're permitted to use), audits each business's *own* public homepage the same way a browser would, and produces a transparent, explainable opportunity score — never a black box.
 
-**Status:** v0.2.0 — the CLI (import → audit → score → export) plus a FastAPI REST backend wrapping the same core modules. This is the second milestone of a larger roadmap; the web dashboard, plugin system, and AI suggestion modules described in the original design doc are not built yet.
+**Status:** v0.3.0 — the CLI, a FastAPI REST backend, and a static Next.js PWA dashboard, all sharing the same core scoring/audit logic. This is the third milestone of a larger roadmap; the plugin system and AI suggestion modules described in the original design doc are not built yet.
 
 ---
 
@@ -97,6 +97,18 @@ curl http://127.0.0.1:8000/leads/export/csv -o leads.csv
 
 The API and CLI share the exact same `leadforge/` core modules — no logic is duplicated, so results are always consistent between the two.
 
+## Quick start — Dashboard
+
+A static, installable PWA that talks to the API above — see [`frontend/README.md`](frontend/README.md) for full details.
+
+```bash
+cd frontend
+npm install
+npm run dev       # http://localhost:3000
+```
+
+Open **Settings** in the app and point it at your running API (default `http://127.0.0.1:8000`). For production, `npm run build` produces a static `out/` directory deployable to GitHub Pages, Vercel, Netlify, or any static host — no Node.js server needed at runtime.
+
 ## CSV format
 
 Any of these column names are recognized (case-insensitive): `name`/`business_name`, `category`/`type`/`industry`, `city`, `state`, `country`, `phone`, `website`/`url`, `rating`/`stars`, `review_count`/`reviews`, `notes`. Only `name` is required. See [`sample_data/businesses_sample.csv`](sample_data/businesses_sample.csv).
@@ -128,19 +140,24 @@ All settings are environment variables (see `leadforge/config.py`), so nothing s
 ## Development
 
 ```bash
+# CLI + API
 pip install -e ".[dev,backend]"
 pytest -q                 # 56 tests, all offline/mocked — no network needed
 ruff check leadforge backend tests
+
+# Dashboard
+cd frontend
+npm ci
+npm run typecheck && npm run lint && npm run build
 ```
 
 ## Roadmap
 
-The CLI and REST API are the foundation. Planned next milestones (see [ROADMAP.md](docs/ROADMAP.md)):
+The CLI, REST API, and dashboard are the foundation. Planned next milestones (see [ROADMAP.md](docs/ROADMAP.md)):
 
-1. Static, installable PWA dashboard (Next.js, exportable to GitHub Pages) that talks to this API
-2. Plugin system for custom scoring rules and industry packs
-3. PDF report generation
-4. AI-assisted recommendation text (opt-in, bring-your-own-API-key)
+1. Plugin system for custom scoring rules and industry packs
+2. PDF report generation
+3. AI-assisted recommendation text (opt-in, bring-your-own-API-key)
 
 ## Principles
 

@@ -1,0 +1,33 @@
+{
+  "name": "syj-leadforge-dashboard",
+  "version": "0.3.0",
+  "private": true,
+  "description": "SYJ LeadForge dashboard — a static, installable PWA that talks to the SYJ LeadForge REST API.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "npx serve out",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test:integration": "tsx scripts/integration-check.ts"
+  },
+  "dependencies": {
+    "lucide-react": "0.454.0",
+    "next": "16.3.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "3.3.6",
+    "@types/node": "20.16.11",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "autoprefixer": "10.4.20",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.0",
+    "postcss": "8.5.26",
+    "tailwindcss": "3.4.14",
+    "tsx": "4.23.11",
+    "typescript": "5.6.3"
+  }
+}

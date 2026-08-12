@@ -14,11 +14,15 @@
 - Interactive docs at `/docs` (OpenAPI)
 - 42 endpoint tests (FastAPI TestClient, fully mocked/offline) alongside the original 14 core tests
 
-## v0.3.0 — Dashboard
+## v0.3.0 — Dashboard (done)
 
-- Next.js static-export frontend (deployable to GitHub Pages, Vercel, Netlify)
-- Installable PWA with offline caching (IndexedDB)
-- Charts, saved searches, dark/light mode
+- Next.js 16 App Router, static export (`output: 'export'`) — deployable to GitHub Pages (with `NEXT_PUBLIC_BASE_PATH` for project subpaths), Vercel, Netlify, or any static host
+- Installable PWA: web manifest, generated icon set, a stale-while-revalidate service worker that caches the app shell for offline use but never caches API responses
+- Runtime-configurable API URL (Settings page, localStorage) — no server URL baked into the build
+- Dashboard (stats + batch audit/score actions), Businesses (filterable table with per-row actions), Leads (ranked list, tier/score filters, expandable score reasons and audit issues, CSV/JSON/Markdown export), Import (drag-and-drop CSV), Settings (API URL + live connection test)
+- Dark-mode-first theming via CSS custom properties, with a light mode toggle
+- `scripts/integration-check.ts`: runs the real `lib/api.ts` against a live backend, wired into CI on all three OSes
+- Zero `npm audit` vulnerabilities; `tsc --noEmit` and `eslint` both clean
 
 ## v0.4.0 — Plugin system
 
@@ -32,6 +36,7 @@
 
 ## Later
 
+- Saved searches, richer charting
 - PostgreSQL as an optional backend alongside SQLite
 - Background job queue for large batch audits (replacing the current synchronous `/audits/run`)
 - Desktop app (Tauri)

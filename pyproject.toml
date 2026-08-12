@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "syj-leadforge"
-version = "0.2.0"
+version = "0.3.0"
 description = "Find website opportunities, qualify leads, and grow your freelance business — ethically."
 readme = "README.md"
 requires-python = ">=3.10"

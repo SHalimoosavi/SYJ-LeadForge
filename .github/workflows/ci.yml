@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  backend:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -57,3 +57,58 @@ jobs:
         # runs identically on Linux, macOS, and Windows runners: starts
         # a real server, drives it with real HTTP requests end-to-end.
         run: python scripts/api_smoke_test.py
+
+  frontend:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build (static export)
+        working-directory: frontend
+        run: npm run build
+
+      - name: Set up Python (for the live backend used below)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend
+        run: pip install -e ".[dev,backend]"
+
+      - name: Frontend <-> backend integration check
+        # Starts a real backend, then runs the frontend's actual
+        # lib/api.ts against it — proves the two sides of the contract
+        # agree, not just that each half builds independently.
+        shell: bash
+        env:
+          LEADFORGE_DELAY: "0"
+        run: |
+          python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 &
+          SERVER_PID=$!
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:8000/health > /dev/null && break
+            sleep 1
+          done
+          cd frontend
+          API_BASE=http://127.0.0.1:8000 npm run test:integration
+          kill $SERVER_PID || true

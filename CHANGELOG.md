@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0] - 2026-08-12
+
+### Added
+- **Next.js dashboard** (`frontend/`) — a static, installable PWA talking to the v0.2.0 REST API:
+  - Dashboard (stats, tier breakdown chart, batch "audit all"/"score all" actions), Businesses (filterable table, per-row audit/score), Leads (ranked list, tier/min-score filters, expandable score reasons and audit issues, CSV/JSON/Markdown export), Import (drag-and-drop CSV), Settings (runtime-configurable API URL with a live connection test)
+  - Static export (`output: 'export'`) — no Node.js server at runtime; deployable to GitHub Pages (`NEXT_PUBLIC_BASE_PATH` for project subpaths), Vercel, Netlify, or any static host
+  - Installable PWA: web manifest, a generated icon set (flag/pennant mark), and a service worker that caches the app shell for offline use while never caching API responses
+  - Dark-mode-first theming via CSS custom properties (no `dark:`/`light:` class duplication), with a light-mode toggle
+  - `scripts/integration-check.ts` — runs the real, unmodified `lib/api.ts` against a live backend (not a reimplementation), wired into CI on Linux/macOS/Windows
+- New CI job (`frontend`) — typecheck, lint, static build, and the live backend integration check, on the same OS matrix as the backend job
+
+### Fixed
+- The originally pinned `next@14.2.18` had known CVEs (npm audit flagged 1 critical); upgraded to the current patched `next@16.3.0`, keeping React 18 (still a supported peer) to minimize migration risk. Also patched a `postcss` advisory. Result: `npm audit` reports 0 vulnerabilities.
+- `next lint` was removed in Next.js 16; migrated to ESLint 9 flat config (`eslint.config.mjs`) calling `eslint-config-next` directly.
+
+### Verified
+- `npm run build` (static export), `tsc --noEmit`, and `eslint .` all pass clean
+- `npm audit`: 0 vulnerabilities, from a from-scratch `npm ci`
+- Live integration check (`npm run test:integration`) against a real running backend: health check, CSV import, batch scoring, filtering, sorting, CSV export, and both error paths (unreachable server vs. 404) — all passed against the actual `lib/api.ts` code, not a mock
+- Static export served and curl-tested end-to-end: all 5 routes, `manifest.json`, `sw.js`, icons all 200; unknown routes correctly 404 (not SPA-fallback-faked)
+
 ## [0.2.0] - 2026-08-08
 
 ### Added
