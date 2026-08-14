@@ -35,9 +35,24 @@ jobs:
         run: |
           leadforge --version
           leadforge doctor
+          leadforge plugins
           leadforge import sample_data/businesses_sample.csv
           leadforge score
           leadforge export json --out /tmp/leads.json
+          leadforge list
+
+      - name: CLI smoke test with an example plugin installed
+        # Proves the plugin system actually works end-to-end, not just in
+        # unit tests: installs a real example plugin into the plugin
+        # directory `leadforge doctor` reports, then runs the normal
+        # workflow and confirms the plugin shows up as loaded.
+        shell: bash
+        run: |
+          PLUGIN_DIR=$(leadforge doctor | grep 'data dir' | awk '{print $3}')/plugins
+          mkdir -p "$PLUGIN_DIR"
+          cp plugins/examples/restaurant_pack.py "$PLUGIN_DIR/"
+          leadforge plugins | grep -q restaurant_pack
+          leadforge score
           leadforge list
 
       - name: CLI smoke test (forced legacy console encoding)

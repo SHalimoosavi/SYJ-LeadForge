@@ -5,14 +5,15 @@
 ```
 leadforge/
 ├── __init__.py      # package version
-├── cli.py           # argparse-based CLI: import, audit, score, export, list, doctor
+├── cli.py           # argparse-based CLI: import, audit, score, export, list, plugins, doctor
 ├── config.py         # Settings, env-var overrides, default weights/exclusions
 ├── models.py         # Business, AuditResult, LeadScore dataclasses
 ├── db.py             # SQLite persistence (Store class)
 ├── importer.py        # CSV -> Business parsing & normalization
 ├── audit.py           # HTTP fetch + stdlib-only HTML analysis + sub-scoring
 ├── scoring.py          # Business + AuditResult -> LeadScore
-└── term.py             # Cross-platform-safe console output (see below)
+├── plugins.py           # Plugin registry, discovery, and hook execution (see below)
+└── term.py               # Cross-platform-safe console output (see below)
 ```
 
 ### Cross-platform console output
@@ -56,6 +57,47 @@ Design choices:
 - **One HTTP GET per audited business** — no crawling, no following internal links, no bypassing robots.txt-style restrictions, and a configurable delay between requests.
 - **Every score is explainable** — `LeadScore.reasons` always lists the concrete signals that produced the number.
 
+### Plugin system (v0.4.0)
+
+`leadforge/plugins.py` defines a `PluginRegistry` with four extension points:
+
+| Hook | Registers | Effect |
+|---|---|---|
+| `add_category_weight(category, weight)` | a score multiplier | Merged over the built-in defaults (plugin wins on conflict) |
+| `exclude_category(category)` | an always-0-score category | Unioned with the built-in exclusion list |
+| `add_audit_check(fn)` | `AuditCheckContext -> list[str]` | Extra issue strings appended to `AuditResult.issues`, deduplicated |
+| `add_scoring_rule(fn)` | `ScoringContext -> ScoreAdjustment` | Point deltas summed, final score re-clamped to 0–100, stars/tier/estimated-value recomputed from that final number |
+
+Discovery, on every `get_registry()` call (cached for the process after
+the first call): installed packages declaring a `leadforge.plugins`
+entry point, then `.py` files in `<LEADFORGE_HOME>/plugins/` (or
+`LEADFORGE_PLUGINS_DIR`) — empty by default, so nothing changes until
+you add a file.
+
+Key decisions:
+
+- **No new fields on `LeadScore` or `AuditResult`.** Plugin scoring
+  output flows entirely through the existing `reasons`/`issues` lists.
+  This was a deliberate scope choice: it means zero changes were needed
+  to `backend/schemas.py`, `frontend/lib/types.ts`, or the exporters —
+  the plugin system slots into the stack that already exists and is
+  already tested, rather than growing the API surface.
+- **Audit checks are informational only** — they append issue strings
+  but never touch numeric scores directly. A scoring rule that wants an
+  audit finding to affect the score checks for it in `context.audit.issues`
+  (see `plugins/examples/restaurant_pack.py`). This keeps "what changed
+  the number" traceable to scoring rules alone, never audit checks.
+- **A broken plugin never breaks anything else.** A failed import, a
+  `register()` that raises, or an individual audit check/scoring rule
+  that raises is caught, logged as a warning, and skipped — loading
+  continues with the next plugin, and a `leadforge score` run continues
+  with the next business.
+- **`use_plugins=False`** on `score_business()` / `audit_website()`
+  fully disables plugin lookups (not just "use an empty registry
+  instance") — this is what the *core* test suite (`test_scoring.py`,
+  `test_audit.py`) uses to test the built-in scorer/auditor in
+  isolation from whatever plugins happen to be on disk.
+
 ## Backend (v0.2.0)
 
 ```
@@ -67,7 +109,8 @@ backend/
     ├── businesses.py    # CRUD + CSV import
     ├── audits.py         # per-business and batch website audit
     ├── scores.py          # per-business and batch opportunity scoring
-    └── leads.py            # ranked lead list, CSV/JSON/Markdown export, stats
+    ├── leads.py            # ranked lead list, CSV/JSON/Markdown export, stats
+    └── plugins.py           # GET /plugins — read-only, mirrors `leadforge plugins`
 ```
 
 The backend does not reimplement import, audit, or scoring logic — every

@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from leadforge import __version__
 
-from .routers import audits, businesses, leads, scores
+from .routers import audits, businesses, leads, plugins, scores
 
 app = FastAPI(
     title="SYJ LeadForge API",
@@ -40,6 +40,7 @@ app.include_router(businesses.router)
 app.include_router(audits.router)
 app.include_router(scores.router)
 app.include_router(leads.router)
+app.include_router(plugins.router)
 
 
 @app.get("/health", tags=["meta"])

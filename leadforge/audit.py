@@ -5,6 +5,10 @@ exactly as a browser or search engine would, and inspects publicly served
 HTML for quality signals. This module never attempts to bypass
 authentication, robots.txt-disallowed paths, rate limits, or any other
 access control.
+
+Plugins (see `leadforge.plugins`) can register additional audit checks
+that inspect the fetched HTML and contribute extra issue strings — see
+`docs/PLUGIN_GUIDE.md`.
 """
 from __future__ import annotations
 
@@ -12,12 +16,17 @@ import socket
 import ssl
 import time
 from html.parser import HTMLParser
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import requests
 
 from .config import Settings
 from .models import AuditResult
+from .plugins import AuditCheckContext, get_registry
+
+if TYPE_CHECKING:
+    from .models import Business
 
 
 class _PageAnalyzer(HTMLParser):
@@ -96,9 +105,21 @@ def _check_tls(hostname: str, timeout: float) -> bool:
         return False
 
 
-def audit_website(business_id: int, url: str, settings: Settings) -> AuditResult:
+def audit_website(
+    business_id: int,
+    url: str,
+    settings: Settings,
+    *,
+    business: Business | None = None,
+    use_plugins: bool = True,
+) -> AuditResult:
     """Fetch and analyze a single business website. Never raises; failures
-    are captured in the returned AuditResult so a batch run can continue."""
+    are captured in the returned AuditResult so a batch run can continue.
+
+    `business` is optional and only used to give plugin audit checks more
+    context (e.g. a category-specific check); omitting it doesn't change
+    the core audit at all. Set `use_plugins=False` to skip plugin audit
+    checks entirely (mainly useful for testing the core auditor alone)."""
     result = AuditResult(business_id=business_id, url=url)
 
     if not url:
@@ -107,6 +128,7 @@ def audit_website(business_id: int, url: str, settings: Settings) -> AuditResult
 
     parsed = urlparse(url)
     hostname = parsed.hostname or ""
+    html_text: str | None = None
 
     headers = {"User-Agent": settings.user_agent}
     start = time.monotonic()
@@ -127,9 +149,10 @@ def audit_website(business_id: int, url: str, settings: Settings) -> AuditResult
         if resp.status_code >= 400:
             result.issues.append(f"Website returned HTTP {resp.status_code}")
 
+        html_text = resp.text
         analyzer = _PageAnalyzer()
         try:
-            analyzer.feed(resp.text)
+            analyzer.feed(html_text)
         except Exception:
             pass
 
@@ -161,7 +184,34 @@ def audit_website(business_id: int, url: str, settings: Settings) -> AuditResult
         result.has_ssl_valid = _check_tls(hostname, settings.request_timeout)
 
     _score_result(result)
+
+    if use_plugins and result.reachable:
+        _run_plugin_audit_checks(business, url, html_text, result)
+
     return result
+
+
+def _run_plugin_audit_checks(
+    business: Business | None, url: str, html: str | None, result: AuditResult
+) -> None:
+    registry = get_registry()
+    if not registry.audit_checks:
+        return
+
+    import logging
+
+    logger = logging.getLogger("leadforge.plugins")
+    context = AuditCheckContext(business=business, url=url, html=html, result=result)
+
+    for plugin_name, check in registry.audit_checks:
+        try:
+            extra_issues = check(context) or []
+        except Exception as exc:
+            logger.warning("Audit check from plugin '%s' failed: %s", plugin_name, exc)
+            continue
+        for issue in extra_issues:
+            if issue not in result.issues:
+                result.issues.append(issue)
 
 
 def _score_result(result: AuditResult) -> None:

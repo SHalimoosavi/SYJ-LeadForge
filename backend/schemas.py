@@ -104,5 +104,19 @@ class StatsOut(BaseModel):
     average_score: float
 
 
+class PluginOut(BaseModel):
+    name: str
+    source: str
+    category_weights_added: int
+    categories_excluded: int
+    audit_checks_added: int
+    scoring_rules_added: int
+
+
+class PluginsOut(BaseModel):
+    plugins: list[PluginOut]
+    plugin_directory: str
+
+
 class ErrorDetail(BaseModel):
     detail: str

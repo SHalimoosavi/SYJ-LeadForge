@@ -23,7 +23,7 @@ def audit_business(business_id: int, store: StoreDep) -> AuditOut:
         raise HTTPException(status_code=400, detail="Business has no website to audit")
 
     settings = get_settings()
-    result = audit_website(business.id, business.website, settings)
+    result = audit_website(business.id, business.website, settings, business=business)
     store.save_audit(result)
     return AuditOut(**result.to_dict())
 
@@ -49,7 +49,7 @@ def run_all_audits(store: StoreDep) -> AuditRunResult:
 
     results: list[AuditOut] = []
     for i, business in enumerate(businesses):
-        result = audit_website(business.id, business.website, settings)
+        result = audit_website(business.id, business.website, settings, business=business)
         store.save_audit(result)
         results.append(AuditOut(**result.to_dict()))
         if i < len(businesses) - 1 and settings.request_delay_seconds > 0:

@@ -4,21 +4,71 @@ single 0-100 lead score, star rating, and rough project value estimate.
 This is a transparent, rule-based scorer (not a black box) so that
 freelancers can trust and tune it. It intentionally never contacts any
 third-party service.
+
+Plugins (see `leadforge.plugins`) can add or override category weights,
+add excluded categories, and register scoring rules that nudge the
+final score with their own point delta and reason strings — see
+`docs/PLUGIN_GUIDE.md`.
 """
 from __future__ import annotations
 
 from .config import DEFAULT_CATEGORY_WEIGHTS, DEFAULT_EXCLUDED_CATEGORIES
 from .models import AuditResult, Business, LeadScore
+from .plugins import PluginRegistry, ScoringContext, get_registry
+
+# Sentinel distinguishing "caller didn't specify a registry" (auto-load
+# the global one) from "caller explicitly passed registry=None" (use no
+# registry at all — plugins fully disabled). A plain `None` default
+# can't express that distinction on its own.
+_REGISTRY_UNSET = object()
 
 
-def is_excluded_category(category: str, excluded: set[str] | None = None) -> bool:
-    excluded = excluded if excluded is not None else DEFAULT_EXCLUDED_CATEGORIES
+def is_excluded_category(
+    category: str,
+    excluded: set[str] | None = None,
+    *,
+    registry: PluginRegistry | None = _REGISTRY_UNSET,  # type: ignore[assignment]
+) -> bool:
+    """True if `category` should always score 0.
+
+    If `excluded` is explicitly passed, it's used as-is (useful for
+    tests or callers that want full control). Otherwise this is the
+    built-in default list unioned with the plugin registry's additions
+    — the global loaded registry by default, or none at all if the
+    caller explicitly passes `registry=None`.
+    """
+    if excluded is None:
+        if registry is _REGISTRY_UNSET:
+            registry = get_registry()
+        extra = registry.excluded_categories if registry is not None else set()
+        excluded = DEFAULT_EXCLUDED_CATEGORIES | extra
     return category.strip().lower() in excluded
 
 
-def _category_weight(category: str, weights: dict | None = None) -> float:
-    weights = weights if weights is not None else DEFAULT_CATEGORY_WEIGHTS
+def _category_weight(
+    category: str,
+    weights: dict | None = None,
+    *,
+    registry: PluginRegistry | None = _REGISTRY_UNSET,  # type: ignore[assignment]
+) -> float:
+    if weights is None:
+        if registry is _REGISTRY_UNSET:
+            registry = get_registry()
+        extra = registry.category_weights if registry is not None else {}
+        weights = {**DEFAULT_CATEGORY_WEIGHTS, **extra}
     return weights.get(category.strip().lower(), 1.0)
+
+
+def _tier_for_score(score: int) -> str:
+    if score >= 80:
+        return "Very High"
+    if score >= 60:
+        return "High"
+    if score >= 40:
+        return "Medium"
+    if score >= 20:
+        return "Low"
+    return "Very Low"
 
 
 def score_business(
@@ -26,6 +76,8 @@ def score_business(
     audit: AuditResult | None = None,
     excluded_categories: set[str] | None = None,
     category_weights: dict | None = None,
+    *,
+    use_plugins: bool = True,
 ) -> LeadScore:
     """Compute an opportunity score for a business.
 
@@ -35,11 +87,19 @@ def score_business(
       more inertia to overcome ("it already works for them").
     - Reputation (rating x review_count, log-dampened) scales the estimate:
       a well-reviewed business can typically justify a bigger budget.
+
+    If `use_plugins` is True (the default), registered scoring rules run
+    after the core computation below: their point deltas are summed, the
+    final score is re-clamped to 0-100, and stars/tier/estimated value are
+    recomputed from that final number, so a business's tier always matches
+    its own score. Pass `use_plugins=False` for a deterministic, plugin-free
+    result (mainly useful for testing the core scorer in isolation).
     """
     reasons: list[str] = []
     score = LeadScore(business_id=business.id or 0)
+    registry = get_registry() if use_plugins else None
 
-    if is_excluded_category(business.category, excluded_categories):
+    if is_excluded_category(business.category, excluded_categories, registry=registry):
         score.opportunity_score = 0
         score.stars = 0
         score.tier = "Excluded"
@@ -79,25 +139,34 @@ def score_business(
             reasons.append(f"Strong reputation ({business.rating}★, {business.review_count} reviews)")
     base += reputation_bonus
 
-    weight = _category_weight(business.category, category_weights)
+    weight = _category_weight(business.category, category_weights, registry=registry)
     weighted = base * weight
     if weight > 1.0:
         reasons.append(f"High-value category multiplier ({weight}x)")
 
     final = max(0, min(100, round(weighted)))
+
+    if registry is not None and registry.scoring_rules:
+        total_delta = 0
+        for plugin_name, rule in registry.scoring_rules:
+            try:
+                adjustment = rule(ScoringContext(business=business, audit=audit, score=score))
+            except Exception as exc:
+                import logging
+
+                logging.getLogger("leadforge.plugins").warning(
+                    "Scoring rule from plugin '%s' failed: %s", plugin_name, exc
+                )
+                continue
+            if adjustment is None:
+                continue
+            total_delta += adjustment.delta
+            reasons.extend(adjustment.reasons)
+        final = max(0, min(100, final + total_delta))
+
     score.opportunity_score = final
     score.stars = max(1, min(5, round(final / 20)))
-
-    if final >= 80:
-        score.tier = "Very High"
-    elif final >= 60:
-        score.tier = "High"
-    elif final >= 40:
-        score.tier = "Medium"
-    elif final >= 20:
-        score.tier = "Low"
-    else:
-        score.tier = "Very Low"
+    score.tier = _tier_for_score(final)
 
     low, high = _estimate_value(final, weight)
     score.estimated_value_low = low
@@ -107,8 +176,10 @@ def score_business(
 
 
 def _estimate_value(opportunity_score: int, category_weight: float) -> tuple[int, int]:
-    """Rough illustrative INR project-value band. Configurable in future
-    versions via plugins; intentionally simple and transparent here."""
+    """Rough illustrative INR project-value band. Category weight is the
+    main lever plugins have for "suggested pricing" — an industry-pack
+    plugin that sets a higher weight for its categories naturally widens
+    the suggested range too, without needing a separate pricing hook."""
     base_low = 8_000
     base_high = 25_000
     scale = 1 + (opportunity_score / 100) * 3  # up to 4x at score 100

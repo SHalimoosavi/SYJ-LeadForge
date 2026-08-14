@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.0] - 2026-08-14
+
+### Added
+- **Plugin system** (`leadforge/plugins.py`) — extend scoring and auditing without forking the project:
+  - Four extension points: `add_category_weight`, `exclude_category`, `add_audit_check` (extra issue strings from inspecting fetched HTML), `add_scoring_rule` (point deltas + reasons, applied after core scoring, final score re-clamped to 0–100 and stars/tier/estimated-value recomputed)
+  - Discovery: installed packages via a `leadforge.plugins` entry-point group, plus `.py` files dropped in `<LEADFORGE_HOME>/plugins/` (or `LEADFORGE_PLUGINS_DIR`) — zero-config, nothing changes until you add a file
+  - A broken plugin (import error, exception in `register()`, or a raising audit check/scoring rule) is skipped with a logged warning and never breaks anything else — other plugins still load, other businesses still get scored/audited
+  - `leadforge plugins` CLI command and `GET /plugins` API endpoint, both showing what's loaded and what each plugin registered
+  - Two realistic example industry-pack plugins (`plugins/examples/restaurant_pack.py`, `legal_pack.py`) plus a minimal annotated template (`hello_world.py`)
+  - Full [Plugin Guide](docs/PLUGIN_GUIDE.md) and `plugins/README.md`
+  - **Deliberate scope decision**: no new fields were added to `LeadScore` or `AuditResult` — plugin output flows entirely through the existing `reasons`/`issues` lists, so this milestone required zero changes to `backend/schemas.py`, `frontend/lib/types.ts`, or the exporters
+- 26 new tests (`tests/test_plugins.py`) covering registry loading (directory + entry-point), error isolation, and scoring/audit integration; 3 new backend tests for `GET /plugins` — **82 tests total**, all passing
+- New CI step: installs a real example plugin and confirms it loads, on top of the existing CLI/API smoke tests
+
+### Fixed
+- `score_business(..., use_plugins=False)` wasn't actually isolating from the global plugin registry — a `None`-as-"not specified" ambiguity in an internal helper meant it silently fell back to the loaded registry anyway. Caught by a test assertion (`with_plugin.opportunity_score` unexpectedly equaled the "without plugin" score at the 100 ceiling), root-caused, and fixed with an explicit sentinel distinguishing "no registry specified" from "explicitly no registry."
+
+### Verified
+- Full test suite (82 tests) + `ruff check` clean, from a clean install
+- `leadforge plugins` and full CLI workflow (import → audit → score → export → list) run end-to-end with two real example plugins installed, not just mocked
+- `GET /plugins` and the full API workflow verified against a real running `uvicorn` server with real HTTP requests, including confirming a plugin actually changes scores returned over the wire
+- Exact new CI command sequences (both the CLI-plugin step and the plugin-loading verification) simulated locally end-to-end before being committed to the workflow
+
 ## [0.3.0] - 2026-08-12
 
 ### Added

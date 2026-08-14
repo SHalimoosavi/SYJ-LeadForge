@@ -24,10 +24,15 @@
 - `scripts/integration-check.ts`: runs the real `lib/api.ts` against a live backend, wired into CI on all three OSes
 - Zero `npm audit` vulnerabilities; `tsc --noEmit` and `eslint` both clean
 
-## v0.4.0 — Plugin system
+## v0.4.0 — Plugin system (done)
 
-- Documented plugin API for custom scoring rules, industry packs, and audit checks
-- Community plugin registry
+- `leadforge/plugins.py`: a `PluginRegistry` with four extension points — category weights, excluded categories, audit checks (extra issue strings from inspecting fetched HTML), and scoring rules (point deltas + reasons, applied after core scoring and re-clamped to 0–100)
+- Discovery: installed packages via a `leadforge.plugins` entry-point group, plus `.py` files dropped in `<LEADFORGE_HOME>/plugins/` (or `LEADFORGE_PLUGINS_DIR`) — zero-config for local use, standard entry points for pip-installable packages
+- A broken plugin (import error, exception in `register()`, or a raising audit check/scoring rule) is skipped with a logged warning — it never breaks loading of other plugins or the rest of the app
+- `leadforge plugins` CLI command and `GET /plugins` API endpoint, both showing what's loaded and what each plugin registered
+- Two realistic example industry-pack plugins (`plugins/examples/restaurant_pack.py`, `legal_pack.py`) plus a minimal template (`hello_world.py`), and a full [Plugin Guide](PLUGIN_GUIDE.md)
+- 26 new tests (registry loading, error isolation, scoring/audit integration) — 82 backend tests total, all still passing
+- A community plugin registry (a searchable index of third-party plugins) is **not** built yet — deferred, see below
 
 ## v0.5.0 — Reporting & AI assist
 
@@ -36,6 +41,7 @@
 
 ## Later
 
+- Community plugin registry (searchable index of third-party plugins)
 - Saved searches, richer charting
 - PostgreSQL as an optional backend alongside SQLite
 - Background job queue for large batch audits (replacing the current synchronous `/audits/run`)

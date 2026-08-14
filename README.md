@@ -6,7 +6,7 @@ SYJ LeadForge is an open-source, MIT-licensed **lead qualification and website a
 
 This is **not** a scraper and **not** a spam tool. It works from CSV lists you already have (your own research, CRM exports, or data from sources you're permitted to use), audits each business's *own* public homepage the same way a browser would, and produces a transparent, explainable opportunity score — never a black box.
 
-**Status:** v0.3.0 — the CLI, a FastAPI REST backend, and a static Next.js PWA dashboard, all sharing the same core scoring/audit logic. This is the third milestone of a larger roadmap; the plugin system and AI suggestion modules described in the original design doc are not built yet.
+**Status:** v0.4.0 — the CLI, a FastAPI REST backend, a static Next.js PWA dashboard, and a plugin system, all sharing the same core scoring/audit logic. This is the fourth milestone of a larger roadmap; PDF reports and AI-assisted suggestions described in the original design doc are not built yet.
 
 ---
 
@@ -18,6 +18,7 @@ This is **not** a scraper and **not** a spam tool. It works from CSV lists you a
 - **Export** — CSV, JSON, or a Markdown report, filterable by tier or minimum score.
 - **List** — a quick table view of all businesses and their latest scores.
 - **Doctor** — environment/config sanity check.
+- **Plugins** — extend scoring and auditing without forking: industry-specific category weights, custom audit checks, and scoring rules with their own reasons, loaded from a plugin directory or an installed package.
 - **REST API** — a FastAPI backend exposing every one of the above over HTTP, with interactive docs at `/docs`, so you can drive LeadForge from a dashboard, script, or another tool.
 
 Everything runs **locally**, stores data in a local SQLite file, and makes no network calls except the one GET request per business you explicitly audit.
@@ -94,6 +95,7 @@ curl http://127.0.0.1:8000/leads/export/csv -o leads.csv
 | GET | `/leads` | Ranked lead list (filter by `tier`, `min_score`) |
 | GET | `/leads/export/{csv\|json\|markdown}` | Download qualified leads |
 | GET | `/stats` | Dashboard-style summary (counts, tier breakdown, average score) |
+| GET | `/plugins` | List loaded plugins and what they registered |
 
 The API and CLI share the exact same `leadforge/` core modules — no logic is duplicated, so results are always consistent between the two.
 
@@ -125,6 +127,19 @@ The scorer is deliberately simple and inspectable (`leadforge/scoring.py`):
 
 Every score comes with a `reasons` list explaining exactly why it landed where it did.
 
+## Plugins
+
+Extend scoring and auditing without forking the project — industry-specific category weights, custom audit checks, and scoring rules with their own point deltas and reasons. See the [Plugin Guide](docs/PLUGIN_GUIDE.md) for the full API, or try an example:
+
+```bash
+leadforge doctor                                          # shows your plugin directory ("data dir")
+cp plugins/examples/restaurant_pack.py ~/.leadforge/plugins/
+leadforge plugins                                          # confirm it loaded
+leadforge score                                              # scores now reflect it
+```
+
+A plugin is a `.py` file with one `register(registry) -> None` function — no build step, no restart. See [`plugins/README.md`](plugins/README.md) for what ships as examples.
+
 ## Configuration
 
 All settings are environment variables (see `leadforge/config.py`), so nothing sensitive or machine-specific is ever hardcoded:
@@ -136,14 +151,15 @@ All settings are environment variables (see `leadforge/config.py`), so nothing s
 | `LEADFORGE_USER_AGENT` | `SYJLeadForge/0.1 ...` | User-Agent sent when auditing a site |
 | `LEADFORGE_MAX_REDIRECTS` | `5` | Max redirects followed during audit |
 | `LEADFORGE_DELAY` | `1.0` | Delay between audit requests (seconds), to be a polite, non-spammy client |
+| `LEADFORGE_PLUGINS_DIR` | `<LEADFORGE_HOME>/plugins` | Where to load `.py` plugin files from |
 
 ## Development
 
 ```bash
 # CLI + API
 pip install -e ".[dev,backend]"
-pytest -q                 # 56 tests, all offline/mocked — no network needed
-ruff check leadforge backend tests
+pytest -q                 # 82 tests, all offline/mocked — no network needed
+ruff check leadforge backend tests scripts
 
 # Dashboard
 cd frontend
@@ -153,11 +169,11 @@ npm run typecheck && npm run lint && npm run build
 
 ## Roadmap
 
-The CLI, REST API, and dashboard are the foundation. Planned next milestones (see [ROADMAP.md](docs/ROADMAP.md)):
+The CLI, REST API, dashboard, and plugin system are the foundation. Planned next milestones (see [ROADMAP.md](docs/ROADMAP.md)):
 
-1. Plugin system for custom scoring rules and industry packs
-2. PDF report generation
-3. AI-assisted recommendation text (opt-in, bring-your-own-API-key)
+1. PDF report generation
+2. AI-assisted recommendation text (opt-in, bring-your-own-API-key)
+3. A community plugin registry (searchable index of third-party plugins)
 
 ## Principles
 

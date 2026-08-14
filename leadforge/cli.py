@@ -6,6 +6,7 @@ Examples:
     leadforge score
     leadforge export csv --out leads.csv
     leadforge list --tier "Very High"
+    leadforge plugins
     leadforge doctor
 """
 from __future__ import annotations
@@ -22,6 +23,7 @@ from .db import Store
 from .exporters import EXPORTERS
 from .importer import ImportError_, load_businesses_from_csv
 from .models import AuditResult
+from .plugins import get_registry
 from .scoring import score_business
 from .term import format_symbol, safe_print, stars
 
@@ -64,7 +66,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
     safe_print(f"Auditing {len(businesses)} website(s)...")
     for i, b in enumerate(businesses, start=1):
         safe_print(f"  [{i}/{len(businesses)}] {b.name} -> {b.website}")
-        result: AuditResult = audit_website(b.id, b.website, settings)
+        result: AuditResult = audit_website(b.id, b.website, settings, business=b)
         store.save_audit(result)
         if result.reachable:
             safe_print(f"      overall score: {result.overall_score}/100")
@@ -154,7 +156,42 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     store = _get_store()
     businesses = store.list_businesses()
     safe_print(f"  businesses:   {len(businesses)}")
+    registry = get_registry()
+    safe_print(f"  plugins:      {len(registry.loaded_plugins)} loaded")
     safe_print("Status: OK")
+    return 0
+
+
+def cmd_plugins(args: argparse.Namespace) -> int:
+    registry = get_registry()
+    settings = get_settings()
+
+    if not registry.loaded_plugins:
+        safe_print("No plugins loaded.")
+        safe_print("")
+        safe_print(f"Plugin directory: {settings.data_dir / 'plugins'}")
+        safe_print("(or set LEADFORGE_PLUGINS_DIR to point elsewhere)")
+        safe_print("Drop a .py file there with a register(registry) function to add one.")
+        safe_print("See docs/PLUGIN_GUIDE.md and plugins/examples/ for a walkthrough.")
+        return 0
+
+    safe_print(f"{len(registry.loaded_plugins)} plugin(s) loaded:")
+    safe_print("")
+    for plugin in registry.loaded_plugins:
+        safe_print(f"  {plugin.name}")
+        safe_print(f"    source:              {plugin.source}")
+        if plugin.category_weights_added:
+            safe_print(f"    category weights:    {plugin.category_weights_added}")
+        if plugin.categories_excluded:
+            safe_print(f"    categories excluded: {plugin.categories_excluded}")
+        if plugin.audit_checks_added:
+            safe_print(f"    audit checks:        {plugin.audit_checks_added}")
+        if plugin.scoring_rules_added:
+            safe_print(f"    scoring rules:       {plugin.scoring_rules_added}")
+        safe_print("")
+
+    if registry.excluded_categories:
+        safe_print(f"Categories excluded by plugins: {', '.join(sorted(registry.excluded_categories))}")
     return 0
 
 
@@ -190,6 +227,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_doctor = sub.add_parser("doctor", help="Check environment and configuration")
     p_doctor.set_defaults(func=cmd_doctor)
+
+    p_plugins = sub.add_parser("plugins", help="List loaded plugins and what they registered")
+    p_plugins.set_defaults(func=cmd_plugins)
 
     return parser
 

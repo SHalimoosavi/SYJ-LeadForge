@@ -308,3 +308,65 @@ def test_stats_empty_db(api_client):
     stats = resp.json()
     assert stats["total_businesses"] == 0
     assert stats["average_score"] == 0.0
+
+
+# -- Plugins ----------------------------------------------------------------
+
+def test_plugins_empty_by_default(api_client):
+    resp = api_client.get("/plugins")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["plugins"] == []
+    assert "plugin_directory" in body
+
+
+def test_plugins_lists_loaded_plugin(api_client, monkeypatch, tmp_path):
+    from leadforge.plugins import reset_registry
+
+    plugins_dir = tmp_path / "leadforge_plugins"
+    plugins_dir.mkdir(parents=True, exist_ok=True)
+    (plugins_dir / "sample.py").write_text(
+        "def register(registry):\n"
+        "    registry.add_category_weight('widget maker', 1.4)\n"
+        "    registry.add_audit_check(lambda ctx: [])\n",
+        encoding="utf-8",
+    )
+    reset_registry()  # LEADFORGE_PLUGINS_DIR already points here via the api_client fixture
+
+    resp = api_client.get("/plugins")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["plugins"]) == 1
+    plugin = body["plugins"][0]
+    assert plugin["name"] == "sample"
+    assert plugin["source"].startswith("file:")
+    assert plugin["category_weights_added"] == 1
+    assert plugin["audit_checks_added"] == 1
+
+    reset_registry()
+
+
+def test_plugin_affects_scoring_through_api(api_client, tmp_path):
+    """End-to-end: a plugin dropped in the plugin directory actually
+    changes scores returned by the API, not just what /plugins reports."""
+    from leadforge.plugins import reset_registry
+
+    plugins_dir = tmp_path / "leadforge_plugins"
+    plugins_dir.mkdir(parents=True, exist_ok=True)
+    (plugins_dir / "bonus.py").write_text(
+        "from leadforge.plugins import ScoreAdjustment\n"
+        "def register(registry):\n"
+        "    registry.add_scoring_rule(lambda ctx: ScoreAdjustment(delta=-100, reasons=['api plugin test']))\n",
+        encoding="utf-8",
+    )
+    reset_registry()
+
+    resp = api_client.post("/businesses", json={"name": "Acme", "category": "Gym"})
+    business_id = resp.json()["id"]
+    resp = api_client.post(f"/businesses/{business_id}/score")
+    assert resp.status_code == 200
+    score = resp.json()
+    assert score["opportunity_score"] == 0
+    assert "api plugin test" in score["reasons"]
+
+    reset_registry()
